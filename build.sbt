@@ -51,8 +51,12 @@ inThisBuild(
         "Denys Shabalin",
         "",
         url("http://den.sh")
-      ))
-  ))
+      )
+    ),
+    // speed up sbt reload, don't package javadoc
+    publishArtifact in packageDoc := sys.env.contains("CI")
+  )
+)
 
 skip.in(publish) := true
 
@@ -102,19 +106,18 @@ lazy val trees = project
   )
   .dependsOn(common)
 
-lazy val isPublished = new java.util.concurrent.atomic.AtomicReference(false)
-lazy val publishTrees = Def.taskDyn {
-  if (!isPublished.get()) {
-    Def.task {
-      // run publishLocal once for each "sbt reload" meaning to pick up new
-      // changes in the trees module you must reload first.
-      isPublished.set(true)
-      publishLocal.in(trees).value
-      publishLocal.in(common).value
-    }
-  } else {
-    Def.task(())
+// trigger publishLocal for trees module so that `sbt test` works out of the box.
+onLoad.in(Global) := {
+  val fn: State => State = { s =>
+    "publishTrees" :: s
   }
+  fn compose onLoad.in(Global).value
+}
+
+lazy val publishTrees = taskKey[Unit]("publishTrees")
+publishTrees := {
+  publishLocal.in(trees).value
+  publishLocal.in(common).value
 }
 
 lazy val parsers = project
@@ -125,10 +128,8 @@ lazy val parsers = project
     // "common" and "trees" modules.
     moduleName := "parsers-experimental",
     macroDependencies(hardcore = true),
-    // trigger publishLocal for trees module so that `sbt test` works out of the box.
-    update := update.dependsOn(publishTrees).value,
     libraryDependencies ++= List(
-      "org.scalameta" %% "trees-experimental" % version.value
+      "org.scalameta" %% "trees-experimental" % version.in(ThisBuild).value
     ),
     unmanagedSourceDirectories.in(Compile) ++= {
       val root = baseDirectory.in(ThisBuild).value / "scalameta"
