@@ -86,6 +86,8 @@ lazy val trees = project
   )
   .dependsOn(common)
 
+skip.in(publish) := true
+
 lazy val enableMacros = macroDependencies(hardcore = false)
 
 lazy val enableHardcoreMacros = macroDependencies(hardcore = true)

@@ -1,68 +1,36 @@
-sudo: required
-os: linux
-dist: trusty
-jdk: oraclejdk8
 language: scala
-git:
-  depth: 9999
-install:
-  - git fetch --tags
-  - rm -rf ~/.nvm && git clone https://github.com/creationix/nvm.git ~/.nvm && (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`) && source ~/.nvm/nvm.sh && nvm install 8
-script:
-  - ./bin/runci.sh $CI_TEST
-addons:
-  apt:
-    update: true
+jdk:
+  - oraclejdk8
 
-matrix:
+stages:
+  - name: test
+  - name: release
+    if: (branch = master AND type = push) OR (tag IS present)
+
+jobs:
   include:
-    - env:
-      - CI_TEST: check
-    - env:
-      - CI_TEST: ci-fast
-      - CI_SCALA_VERSION: 2.11.12
-      - CI_PUBLISH: true
-    - env:
-      - CI_TEST: ci-fast
-      - CI_SCALA_VERSION: 2.11.12
-      - CI_SCALA_JS: true
-    - env:
-        - CI_TEST: ci-native
-        - CI_SCALA_VERSION: 2.11.12
-        - CI_SCALA_NATIVE: true
-      before_install:
-        - curl https://raw.githubusercontent.com/scala-native/scala-native/master/scripts/travis_setup.sh | bash -x
-    - env:
-      - CI_TEST: ci-fast
-      - CI_SCALA_VERSION: 2.12.7
-      - CI_PUBLISH: true
-    - env:
-      - CI_TEST: ci-fast
-      - CI_SCALA_VERSION: 2.12.7
-      - CI_SCALA_JS: true
-    - env:
-      - CI_TEST: ci-slow
-      - CI_SCALA_VERSION: 2.12.7
-    - env:
-      - CI_TEST: mima
+    - env: TEST="scalafmt"
+      script: ./bin/scalafmt --test
+    - env: TEST="sbt test"
+      script: sbt test
+    - stage: release
+      script: sbt ci-release
 
 cache:
   directories:
-  - $HOME/.sbt/0.13/dependency
-  - $HOME/.sbt/boot/scala*
-  - $HOME/.sbt/launchers
-  - $HOME/.ivy2/cache
-  - $HOME/.coursier
-  - target/repos
-
+    - $HOME/.sbt/1.0/dependency
+    - $HOME/.sbt/boot/scala*
+    - $HOME/.sbt/launchers
+    - $HOME/.ivy2/cache
+    - $HOME/.coursier
+    - $HOME/.cache/coursier
 
 before_cache:
   - du -h -d 1 $HOME/.ivy2/cache
   - du -h -d 2 $HOME/.sbt/
   - find $HOME/.sbt -name "*.lock" -type f -delete
   - find $HOME/.ivy2/cache -name "ivydata-*.properties" -type f -delete
-  - find $HOME/.ivy2/cache -name "*scalafix*.xml" -type f -delete
   - rm -rf $HOME/.ivy2/local
 
-after_success:
-- "./bin/ci-publish.sh"
+before_install:
+  - git fetch --tags
