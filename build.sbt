@@ -2,7 +2,7 @@ inThisBuild(
   List(
     scalaVersion := "2.12.7",
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
-    organization := "com.geirsson",
+    organization := "org.scalameta",
     homepage := Some(url("https://github.com/scalameta/sbt-scalafmt")),
     licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
     developers := List(
