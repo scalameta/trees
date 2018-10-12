@@ -58,14 +58,14 @@ lazy val common = project
     // Temporary name to avoid conflicts with scalameta/scalameta modules.
     // Down the road, this build may get promoted to become the official
     // "common" and "trees" modules.
-    moduleName := "dotty-common"
+    moduleName := "common-experimental"
   )
 
 lazy val trees = project
   .in(file("scalameta/trees/shared"))
   .settings(
     enableMacros,
-    moduleName := "dotty-trees",
+    moduleName := "trees-experimental",
     libraryDependencies ++= List(
       "org.scalameta" %% "semanticdb" % "4.0.0",
       "com.lihaoyi" %% "fastparse" % "1.0.0"
