@@ -540,7 +540,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
   trait TemplateIntro {
     def unapply(token: Token): Boolean = {
       token.is[Modifier] || token.is[At] ||
-      token.is[KwClass] || token.is[KwObject] || token.is[KwTrait] ||
+      token.is[KwClass] || token.is[KwObject] || token.is[KwTrait] || token.is[KwEnum] ||
       (token.is[Unquote] && token.next.is[TemplateIntro]) ||
       (token.is[KwCase] && token.isCaseClassOrObject)
     }
