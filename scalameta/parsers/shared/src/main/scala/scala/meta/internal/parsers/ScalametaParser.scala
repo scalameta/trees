@@ -258,6 +258,24 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     (Tokens(underlying, 0, underlying.length), parserTokenPositions.result)
   }
 
+
+  //Modification to make an Iterator out of this, based on Dotty implementation
+
+//  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
+//  var in: TokenIterator = new SimpleTokenIterator()
+//  private class SimpleTokenIterator(var i: Int = -1) extends TokenIterator {
+//    //i is an index in ScannerToken
+//    var sepRegions: List[Token] = List()
+//
+//
+//  }
+
+
+
+
+
+  //------------------------------------------------ OLD VERSION -----------------------------------------------------------------------
+
   // NOTE: public methods of TokenIterator return scannerTokens-based positions
   trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
   var in: TokenIterator = new SimpleTokenIterator()
