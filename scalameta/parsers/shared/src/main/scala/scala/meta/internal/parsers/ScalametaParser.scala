@@ -266,13 +266,13 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
   private class SimpleTokenIterator(var curTokenIndex: Int = -1,
                                       var curToken : Token = null,
                                       var curTokenPos : Int = -1,
-                                      var prevTokenPos : Int = -1,
+                                      var prevTokenPosVar : Int = -1,
                                       var nextTokenIndex : Int = -1,
                                       var nextToken : Token = null,
                                       var nextTokenPos : Int = -1,
                                       var sepRegions: List[Char] = List(),
-                                      var lastTokenPos = 0,
-                                      var prevPos = -1) extends TokenIterator {
+                                      var lastTokenPosVar : Int = 0,
+                                      var prevPos : Int = -1) extends TokenIterator {
 
 
 
@@ -288,21 +288,21 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
        token
        }
 
-    def prevTokenPos: Int = prevTokenPos
+    def prevTokenPos: Int = prevTokenPosVar
     def tokenPos: Int = curTokenPos
     def fork: TokenIterator = new SimpleTokenIterator(curTokenIndex,
                                                       curToken,
                                                       curTokenPos,
-                                                      prevTokenPos,
+                                                      prevTokenPosVar,
                                                       nextTokenIndex,
                                                       nextToken,
                                                       nextTokenPos,
                                                       sepRegions,
-                                                      lastTokenPos,
+                                                      lastTokenPosVar,
                                                       prevPos)
     
 
-    def computeNextTokenIndex(){
+    def computeNextTokenIndex() {
       @tailrec def loop(prevPos: Int, lastTokenPos: Int): Unit = {
         if (lastTokenPos >= scannerTokens.length) {
           nextToken = null
@@ -317,6 +317,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
           i
         }
         val next = if (nextPos != -1) scannerTokens(nextPos) else null
+
         // SIP-27 Trailing comma (multi-line only) support.
         // If a comma is followed by a new line & then a closing paren, bracket or brace
         // then it is a trailing comma and is ignored.
@@ -325,18 +326,19 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
             lastToken.is[Comma] &&
             next.is[CloseDelim] &&
             next.pos.startLine > lastToken.pos.endLine
+
         if (lastToken.isNot[Trivia] && !isTrailingComma) {
           //here token is added to parserToken so change nextIndex and stop
 
           nextTokenIndex = lastTokenPos
           nextTokenPos = lastTokenPos
-          nextToken = scannerToken(nextTokenIndex)
+          nextToken = scannerTokens(nextTokenIndex)
 
           //change variables for the next time
           adjustSepRegions(lastToken)
-          prevPos = lastTokenPos
-          lastTokenPos += 1
-          
+          prevTokenPosVar = lastTokenPos
+          lastTokenPosVar += 1
+
         } else {
           var i = prevPos + 1
           var lastNewlinePos = -1
@@ -352,34 +354,35 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
             i += 1
           }
           if (lastNewlinePos != -1 &&
-              prev != null && prev.is[CanEndStat] &&
-              next != null && next.isNot[CantStartStat] &&
-              (sepRegions.isEmpty || sepRegions.head == '}')) {
+            prev != null && prev.is[CanEndStat] &&
+            next != null && next.isNot[CantStartStat] &&
+            (sepRegions.isEmpty || sepRegions.head == '}')) {
             var token = scannerTokens(lastNewlinePos)
             if (newlines) token = LFLF(token.input, token.dialect, token.start, token.end)
 
-            nextoken = token
+            nextToken = token
             nextTokenPos = lastNewlinePos
             nextTokenIndex = lastNewlinePos
-            prevPos = lastNewlinePos
-            lastTokenPos += 1
+            prevTokenPosVar = lastNewlinePos
+            lastTokenPosVar += 1
 
             // parserTokens += token
             // parserTokenPositions += lastNewlinePos
             // loop(lastNewlinePos, lastTokenPos + 1)
           } else {
-            prevPos = prevPos
-            lastTokenPos = nextPos
+            prevTokenPosVar = prevPos
+            lastTokenPosVar = nextPos
             //loop(prevPos, nextPos)
           }
+        }
+
+        loop(prevTokenPosVar, lastTokenPos)
+
+
       }
-
-      loop(prevPos, lastTokenPos)
-
-      
     }
     
-    def adjustSepRegions(lastToken: Token): Unit = {
+    def adjustSepRegions(curr: Token): Unit = {
         sepRegions = {
           if (curr.is[LeftParen]) ')' :: sepRegions
           else if (curr.is[LeftBracket]) ']' :: sepRegions
@@ -407,19 +410,19 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
 
   //------------------------------------------------ OLD VERSION -----------------------------------------------------------------------
 
-  // // NOTE: public methods of TokenIterator return scannerTokens-based positions
-  // trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
-  // var in: TokenIterator = new SimpleTokenIterator()
-  // private class SimpleTokenIterator(var i: Int = -1) extends TokenIterator {
-  //   require(parserTokens.nonEmpty)
-  //   if (i == -1) next() // NOTE: only do next() if we've been just created. forks can't go for next()
-  //   def hasNext: Boolean = i < parserTokens.length - 1
-  //   def next(): Token = { if (!hasNext) throw new NoSuchElementException(); i += 1; parserTokens(i) }
-  //   def prevTokenPos: Int = if (i > 0) parserTokenPositions(Math.min(i, parserTokens.length - 1) - 1) else -1
-  //   def tokenPos: Int = if (i > -1) parserTokenPositions(Math.min(i, parserTokens.length - 1)) else -1
-  //   def token: Token = parserTokens(i)
-  //   def fork: TokenIterator = new SimpleTokenIterator(i)
-  // }
+   // NOTE: public methods of TokenIterator return scannerTokens-based positions
+//   trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
+//   var in: TokenIterator = new SimpleTokenIterator()
+//   private class SimpleTokenIterator(var i: Int = -1) extends TokenIterator {
+//     require(parserTokens.nonEmpty)
+//     if (i == -1) next() // NOTE: only do next() if we've been just created. forks can't go for next()
+//     def hasNext: Boolean = i < parserTokens.length - 1
+//     def next(): Token = { if (!hasNext) throw new NoSuchElementException(); i += 1; parserTokens(i) }
+//     def prevTokenPos: Int = if (i > 0) parserTokenPositions(Math.min(i, parserTokens.length - 1) - 1) else -1
+//     def tokenPos: Int = if (i > -1) parserTokenPositions(Math.min(i, parserTokens.length - 1)) else -1
+//     def token: Token = parserTokens(i)
+//     def fork: TokenIterator = new SimpleTokenIterator(i)
+//   }
 
   
   def token = in.token
