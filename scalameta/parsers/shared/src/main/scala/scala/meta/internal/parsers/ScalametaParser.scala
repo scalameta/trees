@@ -259,16 +259,136 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
   }
 
 
-  //Modification to make an Iterator out of this, based on Dotty implementation
+ // ------------------------------------------- Modification to make an Iterator out of this, based on Dotty implementation ---------------------------
 
-//  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
-//  var in: TokenIterator = new SimpleTokenIterator()
-//  private class SimpleTokenIterator(var i: Int = -1) extends TokenIterator {
-//    //i is an index in ScannerToken
-//    var sepRegions: List[Token] = List()
-//
-//
-//  }
+  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
+  var in: TokenIterator = new SimpleTokenIterator()
+  private class SimpleTokenIterator(var curTokenIndex: Int = -1,
+                                      var curToken : Token = null,
+                                      var curTokenPos : Int = -1,
+                                      var prevTokenPos : Int = -1,
+                                      var nextTokenIndex : Int = -1,
+                                      var nextToken : Token = null,
+                                      var nextTokenPos : Int = -1,
+                                      var sepRegions: List[Char] = List(),
+                                      var lastTokenPos = 0,
+                                      var prevPos = -1) extends TokenIterator {
+
+
+
+    if(curTokenIndex == -1){ computeNextTokenIndex; next()}
+    def token : Token = curToken
+    def hasNext : Boolean ={
+
+    }
+    def next() : Token = {
+       if (!hasNext) throw new NoSuchElementException()
+       curTokenIndex = nextTokenIndex 
+       curToken = nextToken
+       curTokenPos = nextTokenPos
+       computeNextTokenIndex()
+       token
+       }
+
+    def prevTokenPos: Int = prevTokenPos
+    def tokenPos: Int = curTokenPos
+    
+
+    def computeNextTokenIndex(){
+      @tailrec def loop(prevPos: Int, lastTokenPos: Int): Unit = {
+        if (lastTokenPos >= scannerTokens.length) return
+        val prev = if (prevPos >= 0) scannerTokens(prevPos) else null
+        val lastToken = scannerTokens(lastTokenPos)
+        val nextPos = {
+          var i = lastTokenPos + 1
+          while (i < scannerTokens.length && scannerTokens(i).is[Trivia]) i += 1
+          if (i == scannerTokens.length) i = -1
+          i
+        }
+        val next = if (nextPos != -1) scannerTokens(nextPos) else null
+        // SIP-27 Trailing comma (multi-line only) support.
+        // If a comma is followed by a new line & then a closing paren, bracket or brace
+        // then it is a trailing comma and is ignored.
+        def isTrailingComma: Boolean =
+          dialect.allowTrailingCommas &&
+            lastToken.is[Comma] &&
+            next.is[CloseDelim] &&
+            next.pos.startLine > lastToken.pos.endLine
+        if (lastToken.isNot[Trivia] && !isTrailingComma) {
+          //here token is added to parserToken so change nextIndex and stop
+
+          nextTokenIndex = lastTokenPos
+          nextTokenPos = lastTokenPos
+          nextToken = scannerToken(nextTokenIndex)
+
+          //change variables for the next time
+          adjustSepRegions(lastToken)
+          prevPos = lastTokenPos
+          lastTokenPos += 1
+          
+        } else {
+          var i = prevPos + 1
+          var lastNewlinePos = -1
+          var newlineStreak = false
+          var newlines = false
+          while (i < nextPos) {
+            if (scannerTokens(i).is[LF] || scannerTokens(i).is[FF]) {
+              lastNewlinePos = i
+              if (newlineStreak) newlines = true
+              newlineStreak = true
+            }
+            newlineStreak &= scannerTokens(i).is[Whitespace]
+            i += 1
+          }
+          if (lastNewlinePos != -1 &&
+              prev != null && prev.is[CanEndStat] &&
+              next != null && next.isNot[CantStartStat] &&
+              (sepRegions.isEmpty || sepRegions.head == '}')) {
+            var token = scannerTokens(lastNewlinePos)
+            if (newlines) token = LFLF(token.input, token.dialect, token.start, token.end)
+
+            nextoken = token
+            nextTokenPos = lastNewlinePos
+            nextTokenIndex = lastNewlinePos
+            prevPos = lastNewlinePos
+            lastTokenPos += 1
+
+            // parserTokens += token
+            // parserTokenPositions += lastNewlinePos
+            // loop(lastNewlinePos, lastTokenPos + 1)
+          } else {
+            prevPos = prevPos
+            lastTokenPos = nextPos
+            //loop(prevPos, nextPos)
+          }
+      }
+
+      loop(prevPos, lastTokenPos)
+
+      
+    }
+    
+    def adjustSepRegions(lastToken: Token): Unit = {
+        sepRegions = {
+          if (curr.is[LeftParen]) ')' :: sepRegions
+          else if (curr.is[LeftBracket]) ']' :: sepRegions
+          else if (curr.is[LeftBrace]) '}' :: sepRegions
+          else if (curr.is[CaseIntro]) '\u21d2' :: sepRegions
+          else if (curr.is[RightBrace]) {
+            var sepRegions1 = sepRegions
+            while (!sepRegions1.isEmpty && sepRegions1.head != '}') sepRegions1 = sepRegions1.tail
+            if (!sepRegions1.isEmpty) sepRegions1 = sepRegions1.tail
+            sepRegions1
+          } else if (curr.is[RightBracket]) { if (!sepRegions.isEmpty && sepRegions.head == ']') sepRegions.tail else sepRegions }
+          else if (curr.is[RightParen]) { if (!sepRegions.isEmpty && sepRegions.head == ')') sepRegions.tail else sepRegions }
+          else if (curr.is[RightArrow]) { if (!sepRegions.isEmpty && sepRegions.head == '\u21d2') sepRegions.tail else sepRegions }
+          else sepRegions // do nothing for other tokens
+        }
+    }
+
+
+  }
+
 
 
 
