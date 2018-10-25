@@ -278,9 +278,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
 
     if(curTokenIndex == -1){ computeNextTokenIndex; next()}
     def token : Token = curToken
-    def hasNext : Boolean ={
-
-    }
+    def hasNext : Boolean = nextToken != null
     def next() : Token = {
        if (!hasNext) throw new NoSuchElementException()
        curTokenIndex = nextTokenIndex 
@@ -292,11 +290,24 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
 
     def prevTokenPos: Int = prevTokenPos
     def tokenPos: Int = curTokenPos
+    def fork: TokenIterator = new SimpleTokenIterator(curTokenIndex,
+                                                      curToken,
+                                                      curTokenPos,
+                                                      prevTokenPos,
+                                                      nextTokenIndex,
+                                                      nextToken,
+                                                      nextTokenPos,
+                                                      sepRegions,
+                                                      lastTokenPos,
+                                                      prevPos)
     
 
     def computeNextTokenIndex(){
       @tailrec def loop(prevPos: Int, lastTokenPos: Int): Unit = {
-        if (lastTokenPos >= scannerTokens.length) return
+        if (lastTokenPos >= scannerTokens.length) {
+          nextToken = null
+          nextTokenIndex = -1
+        }
         val prev = if (prevPos >= 0) scannerTokens(prevPos) else null
         val lastToken = scannerTokens(lastTokenPos)
         val nextPos = {
@@ -396,19 +407,21 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
 
   //------------------------------------------------ OLD VERSION -----------------------------------------------------------------------
 
-  // NOTE: public methods of TokenIterator return scannerTokens-based positions
-  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
-  var in: TokenIterator = new SimpleTokenIterator()
-  private class SimpleTokenIterator(var i: Int = -1) extends TokenIterator {
-    require(parserTokens.nonEmpty)
-    if (i == -1) next() // NOTE: only do next() if we've been just created. forks can't go for next()
-    def hasNext: Boolean = i < parserTokens.length - 1
-    def next(): Token = { if (!hasNext) throw new NoSuchElementException(); i += 1; parserTokens(i) }
-    def prevTokenPos: Int = if (i > 0) parserTokenPositions(Math.min(i, parserTokens.length - 1) - 1) else -1
-    def tokenPos: Int = if (i > -1) parserTokenPositions(Math.min(i, parserTokens.length - 1)) else -1
-    def token: Token = parserTokens(i)
-    def fork: TokenIterator = new SimpleTokenIterator(i)
-  }
+  // // NOTE: public methods of TokenIterator return scannerTokens-based positions
+  // trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
+  // var in: TokenIterator = new SimpleTokenIterator()
+  // private class SimpleTokenIterator(var i: Int = -1) extends TokenIterator {
+  //   require(parserTokens.nonEmpty)
+  //   if (i == -1) next() // NOTE: only do next() if we've been just created. forks can't go for next()
+  //   def hasNext: Boolean = i < parserTokens.length - 1
+  //   def next(): Token = { if (!hasNext) throw new NoSuchElementException(); i += 1; parserTokens(i) }
+  //   def prevTokenPos: Int = if (i > 0) parserTokenPositions(Math.min(i, parserTokens.length - 1) - 1) else -1
+  //   def tokenPos: Int = if (i > -1) parserTokenPositions(Math.min(i, parserTokens.length - 1)) else -1
+  //   def token: Token = parserTokens(i)
+  //   def fork: TokenIterator = new SimpleTokenIterator(i)
+  // }
+
+  
   def token = in.token
   def next() = in.next()
   def nextOnce() = next()
