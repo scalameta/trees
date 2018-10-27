@@ -268,10 +268,8 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
                                     var sepRegions : List[Char] = List()) extends TokenIterator {
     var curToken : Token = null
 
-
-    if(curTokenIndex == -1){ next()}
     def token : Token = curToken
-    def hasNext : Boolean = 
+    def hasNext : Boolean = curToken != EOF
     def next() : Token = {
        if (!hasNext) throw new NoSuchElementException()
        fetchToken()
@@ -284,76 +282,67 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     
 
     def fetchToken() {
-      @tailrec def loop(prevPos: Int, currPos: Int, sepRegions: List[Char]): Unit = {
-      if (currPos >= scannerTokens.length) return
-      val prev = if (prevPos >= 0) scannerTokens(prevPos) else null
-      val curr = scannerTokens(currPos)
-      val nextPos = {
-        var i = currPos + 1
-        while (i < scannerTokens.length && scannerTokens(i).is[Trivia]) i += 1
-        if (i == scannerTokens.length) i = -1
-        i
-      }
-      val next = if (nextPos != -1) scannerTokens(nextPos) else null
-      // SIP-27 Trailing comma (multi-line only) support.
-      // If a comma is followed by a new line & then a closing paren, bracket or brace
-      // then it is a trailing comma and is ignored.
-      def isTrailingComma: Boolean =
-        dialect.allowTrailingCommas &&
-          curr.is[Comma] &&
-          next.is[CloseDelim] &&
-          next.pos.startLine > curr.pos.endLine
-      if (curr.isNot[Trivia] && !isTrailingComma) {
-
-        //here we found a pertinent token
-        prevPos = curTokenPos
-        curToken = curr
-        curTokenPos = currPos
-        
-
-        adjustSepRegions(curr)
-        //loop(currPos, currPos + 1, sepRegions1)
-
-
-      } else {
-        var i = prevPos + 1
-        var lastNewlinePos = -1
-        var newlineStreak = false
-        var newlines = false
-        while (i < nextPos) {
-          if (scannerTokens(i).is[LF] || scannerTokens(i).is[FF]) {
-            lastNewlinePos = i
-            if (newlineStreak) newlines = true
-            newlineStreak = true
-          }
-          newlineStreak &= scannerTokens(i).is[Whitespace]
-          i += 1
+      @tailrec def loop(prevPosIn: Int, currPosIn: Int): Unit = {
+        if (currPosIn >= scannerTokens.length) return
+        val prev = if (prevPosIn >= 0) scannerTokens(prevPosIn) else null
+        val curr = scannerTokens(currPosIn)
+        val nextPos = {
+          var i = currPosIn+ 1
+          while (i < scannerTokens.length && scannerTokens(i).is[Trivia]) i += 1
+          if (i == scannerTokens.length) i = -1
+          i
         }
-        if (lastNewlinePos != -1 &&
+        val next = if (nextPos != -1) scannerTokens(nextPos) else null
+        // SIP-27 Trailing comma (multi-line only) support.
+        // If a comma is followed by a new line & then a closing paren, bracket or brace
+        // then it is a trailing comma and is ignored.
+        def isTrailingComma: Boolean =
+          dialect.allowTrailingCommas &&
+            curr.is[Comma] &&
+            next.is[CloseDelim] &&
+            next.pos.startLine > curr.pos.endLine
+        if (curr.isNot[Trivia] && !isTrailingComma) {
+
+          curTokenPos = currPosIn
+          curToken = curr
+          adjustSepRegions(curr)
+
+        } else {
+          var i = prevPosIn + 1
+          var lastNewlinePos = -1
+          var newlineStreak = false
+          var newlines = false
+          while (i < nextPos) {
+            if (scannerTokens(i).is[LF] || scannerTokens(i).is[FF]) {
+              lastNewlinePos = i
+              if (newlineStreak) newlines = true
+              newlineStreak = true
+            }
+            newlineStreak &= scannerTokens(i).is[Whitespace]
+            i += 1
+          }
+          if (lastNewlinePos != -1 &&
             prev != null && prev.is[CanEndStat] &&
             next != null && next.isNot[CantStartStat] &&
             (sepRegions.isEmpty || sepRegions.head == '}')) {
-          var token = scannerTokens(lastNewlinePos)
-          if (newlines) token = LFLF(token.input, token.dialect, token.start, token.end)
+            var token = scannerTokens(lastNewlinePos)
+            if (newlines) token = LFLF(token.input, token.dialect, token.start, token.end)
 
-          //here we found a pertinent token
-          prevPos = lastNewlinePos
-          currPos = lastNewlinePos
-          curToken = token
+            curTokenPos = lastNewlinePos
+            curToken = token
 
 
-          
-        } else {
-          loop(prevPos, nextPos, sepRegions)
+          } else {
+            loop(prevPosIn, nextPos)
+          }
         }
       }
-    }
-
-        loop(prevPos, curTokenPos + 1)
+        prevPos = curTokenPos
+        loop(curTokenPos, curTokenPos + 1)
 
 
       }
-    }
+
     
     def adjustSepRegions(curr: Token): Unit = {
         sepRegions = {
