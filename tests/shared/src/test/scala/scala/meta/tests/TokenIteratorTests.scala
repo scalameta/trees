@@ -10,6 +10,13 @@ class TokenIteratorTests extends FunSuite {
       """
         |class Foo{
         | def x() : Int = 2
+        | y = 3
+        | object Bar{
+        |   def y() : Int = 3
+        |
+        |
+        |   y
+        | }
         |}
       """.stripMargin
     println(program.parse[Source].get)
