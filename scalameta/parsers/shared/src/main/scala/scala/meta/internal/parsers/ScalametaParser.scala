@@ -269,7 +269,10 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     var curToken : Token = null
 
     def token : Token = curToken
-    def hasNext : Boolean = curToken != EOF
+    def hasNext : Boolean = {
+      if(curToken == null) curToken = scannerTokens(curTokenPos)
+      curToken != EOF
+    }
     def next() : Token = {
        if (!hasNext) throw new NoSuchElementException()
        fetchToken()
