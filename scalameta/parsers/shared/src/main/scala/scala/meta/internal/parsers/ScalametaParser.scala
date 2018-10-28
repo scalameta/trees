@@ -326,11 +326,8 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
             (sepRegions.isEmpty || sepRegions.head == '}')) {
             var token = scannerTokens(lastNewlinePos)
             if (newlines) token = LFLF(token.input, token.dialect, token.start, token.end)
-
             curTokenPos = lastNewlinePos
             curToken = token
-
-
           } else {
             loop(prevPosIn, nextPos)
           }
@@ -338,11 +335,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
       }
         prevPos = curTokenPos
         loop(curTokenPos, curTokenPos + 1)
-
-
       }
-
-    
     def adjustSepRegions(curr: Token): Unit = {
         sepRegions = {
           if (curr.is[LeftParen]) ')' :: sepRegions
@@ -360,31 +353,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
           else sepRegions // do nothing for other tokens
         }
     }
-
-
   }
-
-
-
-
-
-
-  //------------------------------------------------ OLD VERSION -----------------------------------------------------------------------
-
-   // NOTE: public methods of TokenIterator return scannerTokens-based positions
-//   trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
-//   var in: TokenIterator = new SimpleTokenIterator()
-//   private class SimpleTokenIterator(var i: Int = -1) extends TokenIterator {
-//     require(parserTokens.nonEmpty)
-//     if (i == -1) next() // NOTE: only do next() if we've been just created. forks can't go for next()
-//     def hasNext: Boolean = i < parserTokens.length - 1
-//     def next(): Token = { if (!hasNext) throw new NoSuchElementException(); i += 1; parserTokens(i) }
-//     def prevTokenPos: Int = if (i > 0) parserTokenPositions(Math.min(i, parserTokens.length - 1) - 1) else -1
-//     def tokenPos: Int = if (i > -1) parserTokenPositions(Math.min(i, parserTokens.length - 1)) else -1
-//     def token: Token = parserTokens(i)
-//     def fork: TokenIterator = new SimpleTokenIterator(i)
-//   }
-
   
   def token = in.token
   def next() = in.next()
