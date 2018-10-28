@@ -184,82 +184,10 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     case Tokenized.Success(tokens) => tokens
     case Tokenized.Error(_, _, details) => throw details
   }
-  lazy val (parserTokens, parserTokenPositions) = {
-    val parserTokens = mutable.ArrayBuilder.make[Token]()
-    val parserTokenPositions = mutable.ArrayBuilder.make[Int]()
-    @tailrec def loop(prevPos: Int, currPos: Int, sepRegions: List[Char]): Unit = {
-      if (currPos >= scannerTokens.length) return
-      val prev = if (prevPos >= 0) scannerTokens(prevPos) else null
-      val curr = scannerTokens(currPos)
-      val nextPos = {
-        var i = currPos + 1
-        while (i < scannerTokens.length && scannerTokens(i).is[Trivia]) i += 1
-        if (i == scannerTokens.length) i = -1
-        i
-      }
-      val next = if (nextPos != -1) scannerTokens(nextPos) else null
-      // SIP-27 Trailing comma (multi-line only) support.
-      // If a comma is followed by a new line & then a closing paren, bracket or brace
-      // then it is a trailing comma and is ignored.
-      def isTrailingComma: Boolean =
-        dialect.allowTrailingCommas &&
-          curr.is[Comma] &&
-          next.is[CloseDelim] &&
-          next.pos.startLine > curr.pos.endLine
-      if (curr.isNot[Trivia] && !isTrailingComma) {
-        parserTokens += curr
-        parserTokenPositions += currPos
-        val sepRegions1 = {
-          if (curr.is[LeftParen]) ')' :: sepRegions
-          else if (curr.is[LeftBracket]) ']' :: sepRegions
-          else if (curr.is[LeftBrace]) '}' :: sepRegions
-          else if (curr.is[CaseIntro]) '\u21d2' :: sepRegions
-          else if (curr.is[RightBrace]) {
-            var sepRegions1 = sepRegions
-            while (!sepRegions1.isEmpty && sepRegions1.head != '}') sepRegions1 = sepRegions1.tail
-            if (!sepRegions1.isEmpty) sepRegions1 = sepRegions1.tail
-            sepRegions1
-          } else if (curr.is[RightBracket]) { if (!sepRegions.isEmpty && sepRegions.head == ']') sepRegions.tail else sepRegions }
-          else if (curr.is[RightParen]) { if (!sepRegions.isEmpty && sepRegions.head == ')') sepRegions.tail else sepRegions }
-          else if (curr.is[RightArrow]) { if (!sepRegions.isEmpty && sepRegions.head == '\u21d2') sepRegions.tail else sepRegions }
-          else sepRegions // do nothing for other tokens
-        }
-        loop(currPos, currPos + 1, sepRegions1)
-      } else {
-        var i = prevPos + 1
-        var lastNewlinePos = -1
-        var newlineStreak = false
-        var newlines = false
-        while (i < nextPos) {
-          if (scannerTokens(i).is[LF] || scannerTokens(i).is[FF]) {
-            lastNewlinePos = i
-            if (newlineStreak) newlines = true
-            newlineStreak = true
-          }
-          newlineStreak &= scannerTokens(i).is[Whitespace]
-          i += 1
-        }
-        if (lastNewlinePos != -1 &&
-            prev != null && prev.is[CanEndStat] &&
-            next != null && next.isNot[CantStartStat] &&
-            (sepRegions.isEmpty || sepRegions.head == '}')) {
-          var token = scannerTokens(lastNewlinePos)
-          if (newlines) token = LFLF(token.input, token.dialect, token.start, token.end)
-          parserTokens += token
-          parserTokenPositions += lastNewlinePos
-          loop(lastNewlinePos, currPos + 1, sepRegions)
-        } else {
-          loop(prevPos, nextPos, sepRegions)
-        }
-      }
-    }
-    loop(-1, 0, Nil)
-    val underlying = parserTokens.result
-    (Tokens(underlying, 0, underlying.length), parserTokenPositions.result)
-  }
 
 
- // ------------------------------------------- Modification to make an Iterator out of this, based on Dotty implementation ---------------------------
+
+/* -------------- TOKEN ITERATOR -------------------------------------------------- */
 
   trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
   var in: TokenIterator = new SimpleTokenIterator()
@@ -3277,7 +3205,6 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     def failMix(advice: Option[String]) = {
       val message = "these statements can't be mixed together"
       val addendum = advice.map(", " + _).getOrElse("")
-      //syntaxError(message + addendum, at = parserTokens.head)
       syntaxError(message + addendum, at = scannerTokens(0))
     }
     statSeq(consumeStat) match {
