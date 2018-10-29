@@ -3150,6 +3150,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
   object OwnedByCaseClass extends TemplateOwner
   object OwnedByClass extends TemplateOwner
   object OwnedByObject extends TemplateOwner
+  object OwnedByEnum extends TemplateOwner
 
   def templateParents(): List[Init] = {
     val parents = ListBuffer[Init]()
