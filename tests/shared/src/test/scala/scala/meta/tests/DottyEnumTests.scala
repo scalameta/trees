@@ -1,8 +1,9 @@
-package org.scalameta.tests
+package scala.meta.tests
 
 import org.scalatest.FunSuite
 import org.scalatest._
 import scala.meta._
+
 class DottyEnumTests extends FunSuite{
   def parsingCheck(program : String, treeStruct : String) = {
     val obtained = program.parse[Source].get.structure
