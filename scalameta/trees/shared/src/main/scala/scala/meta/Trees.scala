@@ -299,6 +299,11 @@ object Defn {
                     templ: Template) extends Defn with Member.Term {
     checkFields(templ.is[Template.Quasi] || templ.stats.forall(!_.is[Ctor]))
   }
+  @ast class Enum(mods: List[Mod],
+                  name: scala.meta.Type.Name,
+                  tparams: List[scala.meta.Type.Param],
+                  ctor: Ctor.Primary,
+                  templ: Template) extends Defn with Member.Type
 
   object Enum {
     @ast class Name(value: Predef.String @nonEmpty)
