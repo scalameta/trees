@@ -2774,6 +2774,8 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
         funDefOrDclOrSecondaryCtor(mods)
       case KwType() =>
         typeDefOrDcl(mods)
+      case KwCase() if ahead(token.isNot[KwClass]) && ahead(token.isNot[KwObject])=>
+        caseDef(mods)
       case _ =>
         tmplDef(mods)
     }
@@ -2878,6 +2880,38 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
       case _ => syntaxError("`=', `>:', or `<:' expected", at = token)
     }
   }
+
+  def caseDef(mods : List[Mod]) : Stat = {
+    accept[KwCase]
+    if(ahead(token.is[Comma])){
+      readRepeatedCase(mods)
+    }else{
+      val caseName = termName()
+      val typeParams = typeParamClauseOpt(ownerIsType = true, ctxBoundsAllowed = true)
+      val ctor = primaryCtor(OwnedByClass)
+      val parents = if(token.is[KwExtends]) {
+        accept[KwExtends]
+        templateParents()
+      } else {
+        Nil
+      }
+      Defn.Enum.Case(mods, caseName, typeParams, ctor, parents)
+    }
+  }
+
+  def readRepeatedCase(mods : List[Mod]) : Defn = {
+    val cases = List.newBuilder[Defn.Enum.Name]
+    cases += Defn.Enum.Name(token.text)
+    next()
+    while(token.is[Comma]){
+      accept[Comma]
+      cases += Defn.Enum.Name(token.text)
+      next()
+    }
+    Defn.Enum.RepeatedCase(mods, cases.result())
+
+  }
+
 
   /** Hook for IDE, for top-level classes/objects. */
   def topLevelTmplDef: Member with Stat =
