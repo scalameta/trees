@@ -299,6 +299,44 @@ object Defn {
                     templ: Template) extends Defn with Member.Term {
     checkFields(templ.is[Template.Quasi] || templ.stats.forall(!_.is[Ctor]))
   }
+
+  object Enum {
+    @ast class Name(value: Predef.String @nonEmpty)
+      extends scala.meta.Name with Term.Ref //with Member.Term
+    // example:
+    // enum Try {
+    //   case Success(value: String)
+    //   case Failure(e: Throwable)
+    // }
+    @ast class Case(mods: List[Mod],
+                    name: Term.Name /* not Type.Name because only companion is visible */,
+                    tparams: List[scala.meta.Type.Param],
+                    ctor: Ctor.Primary,
+                    inits: List[Init]) extends Defn with Member.Term {
+      //      checkFields(
+      //        parent.isEmpty || {
+      //          val p = parent.get
+      //          p.is[Template] && (p.parent.isEmpty || p.parent.get.is[Defn.Enum])
+      //        }
+      //      )
+      checkParent(ParentChecks.CaseEnum)
+
+    }
+    // example:
+    // enum Color {
+    //   case Red, Blue, Green
+    // }
+    @ast class RepeatedCase(mods: List[Mod], cases: List[Enum.Name]) extends Defn {
+      //      checkFields(
+      //        parent.isEmpty || {
+      //          val p = parent.get
+      //          p.is[Template] && (p.parent.isEmpty || p.parent.get.is[Defn.Enum])
+      //        }
+      //      )
+      //checkParent(ParentChecks.CaseEnum)
+
+    }
+  }
 }
 
 @ast class Pkg(ref: Term.Ref, stats: List[Stat])
