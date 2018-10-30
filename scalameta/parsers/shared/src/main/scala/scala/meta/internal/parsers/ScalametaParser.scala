@@ -186,40 +186,56 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
   }
 
 
+  trait TokenIterator extends Iterator[Token] {
+    def prevTokenPos: Int;
 
-/* -------------- TOKEN ITERATOR -------------------------------------------------- */
+    def tokenPos: Int;
 
-  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
+    def token: Token;
+
+    def fork: TokenIterator
+  }
+
   var in: TokenIterator = new SimpleTokenIterator()
+
   private class SimpleTokenIterator(var curTokenPos: Int = 0,
-                                    var prevPos : Int = -1,
-                                    var sepRegions : List[Char] = List()) extends TokenIterator {
-    var curToken : Token = scannerTokens(curTokenPos)
-    def token : Token = curToken
-    def hasNext : Boolean = curToken != EOF
-    def next() : Token = {
-       if (!hasNext) throw new NoSuchElementException()
-       fetchToken()
-       token
-       }
+                                    var prevPos: Int = -1,
+                                    var sepRegions: List[Char] = List()) extends TokenIterator {
+    var curToken: Token = scannerTokens(curTokenPos)
+
+    def token: Token = curToken
+
+    def hasNext: Boolean = curToken != EOF
+
+    def next(): Token = {
+      if (!hasNext) throw new NoSuchElementException()
+      fetchToken()
+      token
+    }
 
     def prevTokenPos: Int = prevPos
-    def tokenPos: Int = curTokenPos
-    def fork: TokenIterator = new SimpleTokenIterator(curTokenPos, prevPos, sepRegions)
-    
 
-    def fetchToken() {
+    def tokenPos: Int = curTokenPos
+
+    def fork: TokenIterator = new SimpleTokenIterator(curTokenPos, prevPos, sepRegions)
+
+    /** Fetch the next available token:
+      *
+      * Update `curToken`, `curTokenPos`, `prevPos` and `sepRegions`.
+      */
+    def fetchToken(): Unit = {
       @tailrec def loop(prevPosIn: Int, currPosIn: Int): Unit = {
         if (currPosIn >= scannerTokens.length) return
         val prev = if (prevPosIn >= 0) scannerTokens(prevPosIn) else null
         val curr = scannerTokens(currPosIn)
         val nextPos = {
-          var i = currPosIn+ 1
+          var i = currPosIn + 1
           while (i < scannerTokens.length && scannerTokens(i).is[Trivia]) i += 1
           if (i == scannerTokens.length) i = -1
           i
         }
         val next = if (nextPos != -1) scannerTokens(nextPos) else null
+
         // SIP-27 Trailing comma (multi-line only) support.
         // If a comma is followed by a new line & then a closing paren, bracket or brace
         // then it is a trailing comma and is ignored.
@@ -228,6 +244,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
             curr.is[Comma] &&
             next.is[CloseDelim] &&
             next.pos.startLine > curr.pos.endLine
+
         if (curr.isNot[Trivia] && !isTrailingComma) {
 
           curTokenPos = currPosIn
@@ -261,33 +278,49 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
           }
         }
       }
-        prevPos = curTokenPos
-        loop(curTokenPos, curTokenPos + 1)
-      }
+
+      prevPos = curTokenPos
+      loop(curTokenPos, curTokenPos + 1)
+    }
+
     def adjustSepRegions(curr: Token): Unit = {
-        sepRegions = {
-          if (curr.is[LeftParen]) ')' :: sepRegions
-          else if (curr.is[LeftBracket]) ']' :: sepRegions
-          else if (curr.is[LeftBrace]) '}' :: sepRegions
-          else if (curr.is[CaseIntro]) '\u21d2' :: sepRegions
-          else if (curr.is[RightBrace]) {
-            var sepRegions1 = sepRegions
-            while (!sepRegions1.isEmpty && sepRegions1.head != '}') sepRegions1 = sepRegions1.tail
-            if (!sepRegions1.isEmpty) sepRegions1 = sepRegions1.tail
-            sepRegions1
-          } else if (curr.is[RightBracket]) { if (!sepRegions.isEmpty && sepRegions.head == ']') sepRegions.tail else sepRegions }
-          else if (curr.is[RightParen]) { if (!sepRegions.isEmpty && sepRegions.head == ')') sepRegions.tail else sepRegions }
-          else if (curr.is[RightArrow]) { if (!sepRegions.isEmpty && sepRegions.head == '\u21d2') sepRegions.tail else sepRegions }
-          else sepRegions // do nothing for other tokens
+      sepRegions = {
+        if (curr.is[LeftParen]) ')' :: sepRegions
+        else if (curr.is[LeftBracket]) ']' :: sepRegions
+        else if (curr.is[LeftBrace]) '}' :: sepRegions
+        else if (curr.is[CaseIntro]) '\u21d2' :: sepRegions
+        else if (curr.is[RightBrace]) {
+          var sepRegions1 = sepRegions
+          while (!sepRegions1.isEmpty && sepRegions1.head != '}') sepRegions1 = sepRegions1.tail
+          if (!sepRegions1.isEmpty) sepRegions1 = sepRegions1.tail
+          sepRegions1
+        } else if (curr.is[RightBracket]) {
+          if (!sepRegions.isEmpty && sepRegions.head == ']') sepRegions.tail else sepRegions
         }
+        else if (curr.is[RightParen]) {
+          if (!sepRegions.isEmpty && sepRegions.head == ')') sepRegions.tail else sepRegions
+        }
+        else if (curr.is[RightArrow]) {
+          if (!sepRegions.isEmpty && sepRegions.head == '\u21d2') sepRegions.tail else sepRegions
+        }
+        else sepRegions // do nothing for other tokens
+      }
     }
   }
-  
+
   def token = in.token
+
   def next() = in.next()
+
   def nextOnce() = next()
-  def nextTwice() = { next(); next() }
-  def nextThrice() = { next(); next(); next() }
+
+  def nextTwice() = {
+    next(); next()
+  }
+
+  def nextThrice() = {
+    next(); next(); next()
+  }
 
 /* ------------- PARSER COMMON -------------------------------------------- */
 
