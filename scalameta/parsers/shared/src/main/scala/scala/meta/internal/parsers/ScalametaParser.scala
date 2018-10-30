@@ -189,7 +189,8 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
 
 /* -------------- TOKEN ITERATOR -------------------------------------------------- */
 
-  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
+  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator;
+    def adjustSepRegions(t : Token) : Unit }
   var in: TokenIterator = new SimpleTokenIterator()
   private class SimpleTokenIterator(var curTokenPos: Int = 0,
                                     var prevPos : Int = -1,
@@ -288,6 +289,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
   def nextOnce() = next()
   def nextTwice() = { next(); next() }
   def nextThrice() = { next(); next(); next() }
+  def adjustSepRegions(t : Token) = in.adjustSepRegions(t)
 
 /* ------------- PARSER COMMON -------------------------------------------- */
 
@@ -2883,6 +2885,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
 
   def caseDef(mods : List[Mod]) : Stat = {
     accept[KwCase]
+    adjustSepRegions(Token.RightArrow(input, dialect, 0, 0))
     if(ahead(token.is[Comma])){
       readRepeatedCase(mods)
     }else{
