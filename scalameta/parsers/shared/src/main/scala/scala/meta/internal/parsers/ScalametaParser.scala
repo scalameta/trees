@@ -175,6 +175,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
 
 /* ------------- PARSER-SPECIFIC TOKENS -------------------------------------------- */
 
+
   // NOTE: Scala's parser isn't ready to accept whitespace and comment tokens,
   // so we have to filter them out, because otherwise we'll get errors like `expected blah, got whitespace`
   // However, in certain tricky cases some whitespace tokens (namely, newlines) do have to be emitted.
@@ -185,31 +186,17 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     case Tokenized.Error(_, _, details) => throw details
   }
 
-
-  trait TokenIterator extends Iterator[Token] {
-    def prevTokenPos: Int;
-
-    def tokenPos: Int;
-
-    def token: Token;
-
-    def fork: TokenIterator
-  }
-
+  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
   var in: TokenIterator = new SimpleTokenIterator()
-
-  private class SimpleTokenIterator(var curTokenPos: Int = -1,
-                                    var prevPos: Int = -1,
+  private class SimpleTokenIterator(var token: Token = null,
+                                    var tokenPos: Int = -1,
+                                    var prevTokenPos: Int = -1,
                                     var sepRegions: List[Char] = List()) extends TokenIterator {
 
-    var curToken: Token = null
 
-    if (curTokenPos == -1) fetchToken() else curToken = scannerTokens(curTokenPos)
+    if (tokenPos == -1) next()
 
-
-    def token: Token = curToken
-
-    def hasNext: Boolean = curToken != EOF
+    def hasNext: Boolean = token != EOF
 
     def next(): Token = {
       if (!hasNext) throw new NoSuchElementException()
@@ -217,15 +204,11 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
       token
     }
 
-    def prevTokenPos: Int = prevPos
-
-    def tokenPos: Int = curTokenPos
-
-    def fork: TokenIterator = new SimpleTokenIterator(curTokenPos, prevPos, sepRegions)
+    def fork: TokenIterator = new SimpleTokenIterator(token, tokenPos, prevTokenPos, sepRegions)
 
     /** Fetch the next available token:
       *
-      * Update `curToken`, `curTokenPos`, `prevPos` and `sepRegions`.
+      * Update `token`, `tokenPos`, `prevTokenPos` and `sepRegions`.
       */
     def fetchToken(): Unit = {
       @tailrec def loop(prevPosIn: Int, currPosIn: Int): Unit = {
@@ -251,8 +234,8 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
 
         if (curr.isNot[Trivia] && !isTrailingComma) {
 
-          curTokenPos = currPosIn
-          curToken = curr
+          tokenPos = currPosIn
+          token = curr
           adjustSepRegions(curr)
 
         } else {
@@ -273,18 +256,18 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
             prev != null && prev.is[CanEndStat] &&
             next != null && next.isNot[CantStartStat] &&
             (sepRegions.isEmpty || sepRegions.head == '}')) {
-            var token = scannerTokens(lastNewlinePos)
-            if (newlines) token = LFLF(token.input, token.dialect, token.start, token.end)
-            curTokenPos = lastNewlinePos
-            curToken = token
+            var tokenIn = scannerTokens(lastNewlinePos)
+            if (newlines) tokenIn = LFLF(tokenIn.input, tokenIn.dialect, tokenIn.start, tokenIn.end)
+            tokenPos = lastNewlinePos
+            token = tokenIn
           } else {
             loop(prevPosIn, nextPos)
           }
         }
       }
 
-      prevPos = curTokenPos
-      loop(curTokenPos, curTokenPos + 1)
+      prevTokenPos = tokenPos
+      loop(tokenPos, tokenPos + 1)
     }
 
     /** Update `sepRegions` based on the current token */
@@ -314,18 +297,10 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
   }
 
   def token = in.token
-
   def next() = in.next()
-
   def nextOnce() = next()
-
-  def nextTwice() = {
-    next(); next()
-  }
-
-  def nextThrice() = {
-    next(); next(); next()
-  }
+  def nextTwice() = { next(); next() }
+  def nextThrice() = { next(); next(); next() }
 
 /* ------------- PARSER COMMON -------------------------------------------- */
 
