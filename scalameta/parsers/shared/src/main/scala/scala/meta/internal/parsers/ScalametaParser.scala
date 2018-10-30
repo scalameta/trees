@@ -233,11 +233,9 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
             next.pos.startLine > curr.pos.endLine
 
         if (curr.isNot[Trivia] && !isTrailingComma) {
-
           tokenPos = currPosIn
           token = curr
           adjustSepRegions(curr)
-
         } else {
           var i = prevPosIn + 1
           var lastNewlinePos = -1
