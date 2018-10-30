@@ -3243,7 +3243,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     def failMix(advice: Option[String]) = {
       val message = "these statements can't be mixed together"
       val addendum = advice.map(", " + _).getOrElse("")
-      syntaxError(message + addendum, at = scannerTokens(0))
+      syntaxError(message + addendum, at = new SimpleTokenIterator().next())
     }
     statSeq(consumeStat) match {
       case Nil => failEmpty()
