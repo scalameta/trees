@@ -198,11 +198,11 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
 
   var in: TokenIterator = new SimpleTokenIterator()
 
-  private class SimpleTokenIterator(var curTokenPos: Int = 0,
+  private class SimpleTokenIterator(var curTokenPos: Int = -1,
                                     var prevPos: Int = -1,
                                     var sepRegions: List[Char] = List()) extends TokenIterator {
-    var curToken: Token = scannerTokens(curTokenPos)
-
+    var curToken: Token = null
+    if(curTokenPos == -1) {fetchToken()}
     def token: Token = curToken
 
     def hasNext: Boolean = curToken != EOF
