@@ -175,6 +175,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
 
 /* ------------- PARSER-SPECIFIC TOKENS -------------------------------------------- */
 
+
   // NOTE: Scala's parser isn't ready to accept whitespace and comment tokens,
   // so we have to filter them out, because otherwise we'll get errors like `expected blah, got whitespace`
   // However, in certain tricky cases some whitespace tokens (namely, newlines) do have to be emitted.
@@ -185,42 +186,43 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     case Tokenized.Error(_, _, details) => throw details
   }
 
-
-
-/* -------------- TOKEN ITERATOR -------------------------------------------------- */
-
-  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator;
-    def adjustSepRegions(t : Token) : Unit }
+  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
   var in: TokenIterator = new SimpleTokenIterator()
-  private class SimpleTokenIterator(var curTokenPos: Int = 0,
-                                    var prevPos : Int = -1,
-                                    var sepRegions : List[Char] = List()) extends TokenIterator {
-    var curToken : Token = scannerTokens(curTokenPos)
-    def token : Token = curToken
-    def hasNext : Boolean = curToken != EOF
-    def next() : Token = {
-       if (!hasNext) throw new NoSuchElementException()
-       fetchToken()
-       token
-       }
+  private class SimpleTokenIterator(var token: Token = null,
+                                    var tokenPos: Int = -1,
+                                    var prevTokenPos: Int = -1,
+                                    var sepRegions: List[Char] = List()) extends TokenIterator {
 
-    def prevTokenPos: Int = prevPos
-    def tokenPos: Int = curTokenPos
-    def fork: TokenIterator = new SimpleTokenIterator(curTokenPos, prevPos, sepRegions)
-    
 
-    def fetchToken() {
+    if (tokenPos == -1) next()
+
+    def hasNext: Boolean = token != EOF
+
+    def next(): Token = {
+      if (!hasNext) throw new NoSuchElementException()
+      fetchToken()
+      token
+    }
+
+    def fork: TokenIterator = new SimpleTokenIterator(token, tokenPos, prevTokenPos, sepRegions)
+
+    /** Fetch the next available token:
+      *
+      * Update `token`, `tokenPos`, `prevTokenPos` and `sepRegions`.
+      */
+    def fetchToken(): Unit = {
       @tailrec def loop(prevPosIn: Int, currPosIn: Int): Unit = {
         if (currPosIn >= scannerTokens.length) return
         val prev = if (prevPosIn >= 0) scannerTokens(prevPosIn) else null
         val curr = scannerTokens(currPosIn)
         val nextPos = {
-          var i = currPosIn+ 1
+          var i = currPosIn + 1
           while (i < scannerTokens.length && scannerTokens(i).is[Trivia]) i += 1
           if (i == scannerTokens.length) i = -1
           i
         }
         val next = if (nextPos != -1) scannerTokens(nextPos) else null
+
         // SIP-27 Trailing comma (multi-line only) support.
         // If a comma is followed by a new line & then a closing paren, bracket or brace
         // then it is a trailing comma and is ignored.
@@ -229,12 +231,11 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
             curr.is[Comma] &&
             next.is[CloseDelim] &&
             next.pos.startLine > curr.pos.endLine
+
         if (curr.isNot[Trivia] && !isTrailingComma) {
-
-          curTokenPos = currPosIn
-          curToken = curr
+          tokenPos = currPosIn
+          token = curr
           adjustSepRegions(curr)
-
         } else {
           var i = prevPosIn + 1
           var lastNewlinePos = -1
@@ -253,37 +254,46 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
             prev != null && prev.is[CanEndStat] &&
             next != null && next.isNot[CantStartStat] &&
             (sepRegions.isEmpty || sepRegions.head == '}')) {
-            var token = scannerTokens(lastNewlinePos)
-            if (newlines) token = LFLF(token.input, token.dialect, token.start, token.end)
-            curTokenPos = lastNewlinePos
-            curToken = token
+            var tokenIn = scannerTokens(lastNewlinePos)
+            if (newlines) tokenIn = LFLF(tokenIn.input, tokenIn.dialect, tokenIn.start, tokenIn.end)
+            tokenPos = lastNewlinePos
+            token = tokenIn
           } else {
             loop(prevPosIn, nextPos)
           }
         }
       }
-        prevPos = curTokenPos
-        loop(curTokenPos, curTokenPos + 1)
-      }
+
+      prevTokenPos = tokenPos
+      loop(tokenPos, tokenPos + 1)
+    }
+
+    /** Update `sepRegions` based on the current token */
     def adjustSepRegions(curr: Token): Unit = {
-        sepRegions = {
-          if (curr.is[LeftParen]) ')' :: sepRegions
-          else if (curr.is[LeftBracket]) ']' :: sepRegions
-          else if (curr.is[LeftBrace]) '}' :: sepRegions
-          else if (curr.is[CaseIntro]) '\u21d2' :: sepRegions
-          else if (curr.is[RightBrace]) {
-            var sepRegions1 = sepRegions
-            while (!sepRegions1.isEmpty && sepRegions1.head != '}') sepRegions1 = sepRegions1.tail
-            if (!sepRegions1.isEmpty) sepRegions1 = sepRegions1.tail
-            sepRegions1
-          } else if (curr.is[RightBracket]) { if (!sepRegions.isEmpty && sepRegions.head == ']') sepRegions.tail else sepRegions }
-          else if (curr.is[RightParen]) { if (!sepRegions.isEmpty && sepRegions.head == ')') sepRegions.tail else sepRegions }
-          else if (curr.is[RightArrow]) { if (!sepRegions.isEmpty && sepRegions.head == '\u21d2') sepRegions.tail else sepRegions }
-          else sepRegions // do nothing for other tokens
+      sepRegions = {
+        if (curr.is[LeftParen]) ')' :: sepRegions
+        else if (curr.is[LeftBracket]) ']' :: sepRegions
+        else if (curr.is[LeftBrace]) '}' :: sepRegions
+        else if (curr.is[CaseIntro]) '\u21d2' :: sepRegions
+        else if (curr.is[RightBrace]) {
+          var sepRegions1 = sepRegions
+          while (!sepRegions1.isEmpty && sepRegions1.head != '}') sepRegions1 = sepRegions1.tail
+          if (!sepRegions1.isEmpty) sepRegions1 = sepRegions1.tail
+          sepRegions1
+        } else if (curr.is[RightBracket]) {
+          if (!sepRegions.isEmpty && sepRegions.head == ']') sepRegions.tail else sepRegions
         }
+        else if (curr.is[RightParen]) {
+          if (!sepRegions.isEmpty && sepRegions.head == ')') sepRegions.tail else sepRegions
+        }
+        else if (curr.is[RightArrow]) {
+          if (!sepRegions.isEmpty && sepRegions.head == '\u21d2') sepRegions.tail else sepRegions
+        }
+        else sepRegions // do nothing for other tokens
+      }
     }
   }
-  
+
   def token = in.token
   def next() = in.next()
   def nextOnce() = next()
@@ -3259,7 +3269,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     def failMix(advice: Option[String]) = {
       val message = "these statements can't be mixed together"
       val addendum = advice.map(", " + _).getOrElse("")
-      syntaxError(message + addendum, at = scannerTokens(0))
+      syntaxError(message + addendum, at = new SimpleTokenIterator().next())
     }
     statSeq(consumeStat) match {
       case Nil => failEmpty()
