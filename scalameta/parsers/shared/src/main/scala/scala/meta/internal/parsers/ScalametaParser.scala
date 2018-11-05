@@ -186,7 +186,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     case Tokenized.Error(_, _, details) => throw details
   }
 
-  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
+  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator; def adjustSepRegions(token : Token): Unit }
   var in: TokenIterator = new SimpleTokenIterator()
   private class SimpleTokenIterator(var token: Token = null,
                                     var tokenPos: Int = -1,

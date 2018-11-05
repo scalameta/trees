@@ -324,7 +324,7 @@ object Defn {
       //          p.is[Template] && (p.parent.isEmpty || p.parent.get.is[Defn.Enum])
       //        }
       //      )
-      //checkParent(ParentChecks.CaseEnum)
+      checkParent(ParentChecks.CaseEnum)
 
     }
     // example:
@@ -338,7 +338,7 @@ object Defn {
       //          p.is[Template] && (p.parent.isEmpty || p.parent.get.is[Defn.Enum])
       //        }
       //      )
-      //checkParent(ParentChecks.CaseEnum)
+      checkParent(ParentChecks.CaseEnum)
 
     }
   }
