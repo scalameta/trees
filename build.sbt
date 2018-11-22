@@ -75,6 +75,7 @@ lazy val common = project
   .in(file("scalameta/common/shared"))
   .settings(
     macroDependencies(hardcore = false),
+    libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.1.4",
     // Temporary name to avoid conflicts with scalameta/scalameta modules.
     // Down the road, this build may get promoted to become the official
     // "common" and "trees" modules.
@@ -158,3 +159,29 @@ lazy val tests = project
     )
   )
   .dependsOn(scalameta)
+
+lazy val contrib = project
+  .in(file("scalameta/contrib"))
+  .settings(
+    moduleName := "contrib-experimental",
+    description := "Incubator for Scalameta APIs",
+    scalaSource in Compile := baseDirectory.value / "shared" / "src"
+  )
+  .dependsOn(scalameta)
+
+lazy val testkit = project
+  .in(file("scalameta/testkit"))
+  .settings(
+    moduleName := "testkit-experimental",
+    libraryDependencies ++= Seq(
+      "org.scalatest" %% "scalatest" % "3.0.5",
+      "com.lihaoyi" %% "geny" % "0.1.2",
+      // These are used to download and extract a corpus tar.gz
+      "org.rauschig" % "jarchivelib" % "0.7.1",
+      "commons-io" % "commons-io" % "2.5",
+      "com.googlecode.java-diff-utils" % "diffutils" % "1.3.0"
+    ),
+    libraryDependencies += "org.scala-lang" % "scala-compiler" % scalaVersion.value % Test,
+    description := "Testing utilities for scalameta APIs"
+  )
+  .dependsOn(contrib)
