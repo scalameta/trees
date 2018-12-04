@@ -12,12 +12,6 @@ class TokensSuite extends FunSuite {
     assert(tree.tokens.syntax === "foo + bar // baz")
   }
 
-  test("Tree.tokens: parsed, different dialect") {
-    val tree = dialects.Scala210("foo + bar // baz").parse[Term].get
-    assert(tree.syntax === "foo + bar")
-    assert(tree.tokens.syntax === "foo + bar // baz")
-  }
-
   test("Tree.tokens: manual") {
     val tree = Term.ApplyInfix(Term.Name("foo"), Term.Name("+"), Nil, List(Term.Name("bar")))
     assert(tree.syntax === "foo + bar")
