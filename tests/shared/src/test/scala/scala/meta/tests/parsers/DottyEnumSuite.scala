@@ -2,12 +2,13 @@ package scala.meta.tests.parsers
 
 import org.scalatest.FunSuite
 import org.scalatest._
+
 import scala.meta._
 import scala.meta.dialects.Dotty
 
 class DottyEnumSuite extends FunSuite {
-  def newParserTest(source: String)(body: Parsed[Source] => Unit) {
-    val name = source.take(50).replace("\n", " ")
+  def newParserTest(source: String, customName: Option[String] = None)(body: Parsed[Source] => Unit) {
+    val name = customName.getOrElse(source.take(50).replace("\n", " "))
     test(name) {
       val parsed = Dotty(source).parse[Source]
       body(parsed)
@@ -116,6 +117,32 @@ class DottyEnumSuite extends FunSuite {
       |  case NEPTUNE extends Planet(1.024e+26, 2.4746e7)
       |}
       """.stripMargin
+  )
+
+  def checkPos(name: String, source: String, expected: String): Unit = {
+    newParserTest(source, Some(name))(parsed => {
+      assert(!parsed.isInstanceOf[Parsed.Error])
+      def loop(x: Tree): Unit = {
+        println(x)
+        x.tokens(dialects.Scala212.copy(allowAndTypes = true)).foreach { tok =>
+          println(tok.structure)
+        }
+        x.children.foreach(loop)
+      }
+      val obtained = parsed.get.collect { case t => s"${t.structure} \n  ${t.tokens(dialects.Scala212).structure}"}.mkString("\n")
+      loop(parsed.get)
+      //println(obtained)
+    })
+  }
+
+  checkPos(
+    "checkPos",
+    """
+      |enum Foo {
+      |    case Aaaaaaaaaaaaaaaaaaaa, Bbbbbbbb, C, D, E
+      | }
+    """.stripMargin,
+    """"""
   )
 
   checkOK(
