@@ -490,7 +490,7 @@ object TreeSyntax {
         case t: Defn.Type      => s(w(t.mods, " "), kw("type"), " ", t.name, t.tparams, " ", kw("="), " ", t.body)
         case t: Defn.Class     => s(w(t.mods, " "), kw("class"), " ", t.name, t.tparams, w(" ", t.ctor, t.ctor.mods.nonEmpty), templ(t.templ))
         case t: Defn.Enum =>
-          if (!dialect.allowEnums) throw new UnsupportedOperationException(s"$dialect doesn't support Enum")
+//          if (!dialect.allowEnums) throw new UnsupportedOperationException(s"$dialect doesn't support Enum")
           s(w(t.mods, " "), kw("enum"), " ", t.name, t.tparams, w(" ", t.ctor, t.ctor.mods.nonEmpty), templ(t.templ))
 
         case t: Defn.Trait     =>
@@ -599,18 +599,18 @@ object TreeSyntax {
           s("case ", ppat, pcond, " ", kw("=>"), pbody)
 
         case t: Defn.Enum.Case =>
-          if (!dialect.allowEnums) throw new UnsupportedOperationException(s"$dialect doesn't support Enum")
+//          if (!dialect.allowEnums) throw new UnsupportedOperationException(s"$dialect doesn't support Enum")
           if (t.inits.isEmpty)
             s(kw("case"), " ", t.name, t.tparams, w(" ", t.ctor, t.ctor.mods.nonEmpty))
           else
             s(kw("case"), " ", t.name, t.tparams, w(" ", t.ctor, t.ctor.mods.nonEmpty), " ", kw("extends"), " ", r(t.inits, " with "))
             
         case t: Defn.Enum.RepeatedCase =>
-          if (!dialect.allowEnums) throw new UnsupportedOperationException(s"$dialect doesn't support Enum")
+//          if (!dialect.allowEnums) throw new UnsupportedOperationException(s"$dialect doesn't support Enum")
           s(kw("case"), " ", r(t.cases, ", "))
 
         case t: Defn.Enum.Name =>
-          if (!dialect.allowEnums) throw new UnsupportedOperationException(s"$dialect doesn't support Enum")
+//          if (!dialect.allowEnums) throw new UnsupportedOperationException(s"$dialect doesn't support Enum")
           s(t.value)
 
         // Source
@@ -670,7 +670,7 @@ object TreeSyntax {
         // NOTE: Options don't really matter,
         // because if we've parsed a tree, it's not gonna contain lazy seqs anyway.
         // case Origin.Parsed(_, originalDialect, _) if dialect == originalDialect && options == Options.Eager =>
-        case Origin.Parsed(_, originalDialect, _) if dialect == originalDialect => s(x.pos.text)
+        case Origin.Parsed(_, originalDialect, _) => s(x.pos.text)
         case _ => syntaxInstances.syntaxTree[T].apply(x)
       }
     }

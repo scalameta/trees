@@ -2899,7 +2899,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     }
   }
 
-  def caseDef(mods: List[Mod]): Stat = {
+  def caseDef(mods: List[Mod]): Stat = autoPos{
     accept[KwCase]
 
     // Scanner thinks it is in a pattern match after seeing the `case`.
