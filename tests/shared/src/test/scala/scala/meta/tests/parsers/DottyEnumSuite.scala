@@ -119,32 +119,6 @@ class DottyEnumSuite extends FunSuite {
       """.stripMargin
   )
 
-  def checkPos(name: String, source: String, expected: String): Unit = {
-    newParserTest(source, Some(name))(parsed => {
-      assert(!parsed.isInstanceOf[Parsed.Error])
-      def loop(x: Tree): Unit = {
-        println(x)
-        x.tokens(dialects.Scala212.copy(allowAndTypes = true)).foreach { tok =>
-          println(tok.structure)
-        }
-        x.children.foreach(loop)
-      }
-      val obtained = parsed.get.collect { case t => s"${t.structure} \n  ${t.tokens(dialects.Scala212).structure}"}.mkString("\n")
-      loop(parsed.get)
-      //println(obtained)
-    })
-  }
-
-  checkPos(
-    "checkPos",
-    """
-      |enum Foo {
-      |    case Aaaaaaaaaaaaaaaaaaaa, Bbbbbbbb, C, D, E
-      | }
-    """.stripMargin,
-    """"""
-  )
-
   checkOK(
     "enum Foo{}",
     """Source(List(
