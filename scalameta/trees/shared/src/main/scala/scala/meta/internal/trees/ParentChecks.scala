@@ -102,4 +102,9 @@ object ParentChecks {
   def TypeMethod(tree: Type.Method, parent: Tree, destination: String): Boolean = {
     parent.is[Type]
   }
+
+  def CaseEnum(tree: Defn, parent: Tree, destination: String): Boolean = {
+    parent.is[Template]
+    // ideally `&& (parent.parent.isEmpty || parent.parent.get.is[Defn.Enum])` but `parent.parent` is always empty
+  }
 }

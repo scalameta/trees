@@ -489,6 +489,9 @@ object TreeSyntax {
         case t: Defn.Var       => s(w(t.mods, " "), kw("var"), " ", r(t.pats, ", "), t.decltpe, " ", kw("="), " ", t.rhs.map(s(_)).getOrElse(s(kw("_"))))
         case t: Defn.Type      => s(w(t.mods, " "), kw("type"), " ", t.name, t.tparams, " ", kw("="), " ", t.body)
         case t: Defn.Class     => s(w(t.mods, " "), kw("class"), " ", t.name, t.tparams, w(" ", t.ctor, t.ctor.mods.nonEmpty), templ(t.templ))
+        case t: Defn.Enum =>
+          s(w(t.mods, " "), kw("enum"), " ", t.name, t.tparams, w(" ", t.ctor, t.ctor.mods.nonEmpty), templ(t.templ))
+
         case t: Defn.Trait     =>
           if (dialect.allowTraitParameters || t.ctor.mods.isEmpty) {
             s(w(t.mods, " "), kw("trait"), " ", t.name, t.tparams, w(" ", t.ctor, t.ctor.mods.nonEmpty), templ(t.templ))
@@ -594,6 +597,18 @@ object TreeSyntax {
           }
           s("case ", ppat, pcond, " ", kw("=>"), pbody)
 
+        case t: Defn.Enum.Case =>
+          if (t.inits.isEmpty)
+            s(kw("case"), " ", t.name, t.tparams, w(" ", t.ctor, t.ctor.mods.nonEmpty))
+          else
+            s(kw("case"), " ", t.name, t.tparams, w(" ", t.ctor, t.ctor.mods.nonEmpty), " ", kw("extends"), " ", r(t.inits, " with "))
+            
+        case t: Defn.Enum.RepeatedCase =>
+          s(kw("case"), " ", r(t.cases, ", "))
+
+        case t: Defn.Enum.Name =>
+          s(t.value)
+
         // Source
         case t: Source                   => r(t.stats, EOL)
       }
@@ -651,7 +666,7 @@ object TreeSyntax {
         // NOTE: Options don't really matter,
         // because if we've parsed a tree, it's not gonna contain lazy seqs anyway.
         // case Origin.Parsed(_, originalDialect, _) if dialect == originalDialect && options == Options.Eager =>
-        case Origin.Parsed(_, originalDialect, _) if dialect == originalDialect => s(x.pos.text)
+        case Origin.Parsed(_, originalDialect, _) => s(x.pos.text)
         case _ => syntaxInstances.syntaxTree[T].apply(x)
       }
     }

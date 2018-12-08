@@ -186,7 +186,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
   }
 
   // NOTE: public methods of TokenIterator return scannerTokens-based positions
-  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator }
+  trait TokenIterator extends Iterator[Token] { def prevTokenPos: Int; def tokenPos: Int; def token: Token; def fork: TokenIterator; def adjustSepRegions(token: Token): Unit }
   var in: TokenIterator = new SimpleTokenIterator()
   private class SimpleTokenIterator(var token: Token = null,
                                     var tokenPos: Int = -1,
@@ -299,6 +299,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
   def nextOnce() = next()
   def nextTwice() = { next(); next() }
   def nextThrice() = { next(); next(); next() }
+  def adjustSepRegions(t: Token) = in.adjustSepRegions(t)
 
 /* ------------- PARSER COMMON -------------------------------------------- */
 
@@ -467,6 +468,10 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     }
   }
 
+  def onlyAcceptMod(pred: Mod => Boolean)(mods: List[Mod], errorMsg: String): Unit = {
+    mods.filterNot(pred).foreach(m => syntaxError(errorMsg, at = m))
+  }
+
   class InvalidModCombination[M1 <: Mod, M2 <: Mod](m1: M1, m2: M2) {
     def errorMessage: String = Messages.IllegalCombinationModifiers(m1, m2)
   }
@@ -543,7 +548,8 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
       token.is[TemplateIntro] || token.is[DclIntro] ||
       (token.is[Unquote] && token.next.is[DefIntro]) ||
       (token.is[Ellipsis] && token.next.is[DefIntro]) ||
-      (token.is[KwCase] && token.isCaseClassOrObject)
+      (token.is[KwCase] && (token.isCaseClassOrObject || dialect.allowEnums)) ||
+      (dialect.allowEnums && token.is[KwEnum])
     }
   }
 
@@ -552,6 +558,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     def unapply(token: Token): Boolean = {
       token.is[Modifier] || token.is[At] ||
       token.is[KwClass] || token.is[KwObject] || token.is[KwTrait] ||
+      (dialect.allowEnums && token.is[KwEnum]) ||
       (token.is[Unquote] && token.next.is[TemplateIntro]) ||
       (token.is[KwCase] && token.isCaseClassOrObject)
     }
@@ -1164,6 +1171,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
   private object AllowedName {
     implicit object AllowedTermName extends AllowedName[Term.Name]
     implicit object AllowedTypeName extends AllowedName[Type.Name]
+    implicit object AllowedEnumName extends AllowedName[Defn.Enum.Name]
   }
   private def name[T <: Tree : AllowedName : AstInfo](ctor: String => T, advance: Boolean): T = token match {
     case Ident("inline") if !dialect.allowInlineIdents =>
@@ -1180,6 +1188,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
   }
   def termName(advance: Boolean = true): Term.Name = name(Term.Name(_), advance)
   def typeName(advance: Boolean = true): Type.Name = name(Type.Name(_), advance)
+  def enumName(advance: Boolean = true): Defn.Enum.Name = name(Defn.Enum.Name(_), advance)
 
   def path(thisOK: Boolean = true): Term.Ref = {
     val startsAtBof = token.prev.is[BOF]
@@ -2783,6 +2792,8 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
         funDefOrDclOrSecondaryCtor(mods)
       case KwType() =>
         typeDefOrDcl(mods)
+      case KwCase() if dialect.allowEnums && ahead(token.isNot[KwClass] && token.isNot[KwObject]) =>
+        caseDef(mods)
       case _ =>
         tmplDef(mods)
     }
@@ -2888,6 +2899,31 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     }
   }
 
+  def caseDef(mods: List[Mod]): Stat = autoPos{
+    accept[KwCase]
+
+    // Scanner thinks it is in a pattern match after seeing the `case`.
+    // We need to get it out of that mode by telling it we are past the `=>`
+    adjustSepRegions(Token.RightArrow(input, dialect, 0, 0))
+
+    onlyAcceptMod(m => m.is[Mod.Annot])(mods, "Modifiers are not allowed on enum cases")
+    if (ahead(token.is[Comma])) {
+      val cases = commaSeparated(enumName())
+      Defn.Enum.RepeatedCase(mods, cases)
+    } else {
+      val caseName = termName()
+      val typeParams = typeParamClauseOpt(ownerIsType = true, ctxBoundsAllowed = true)
+      val ctor = primaryCtor(OwnedByClass)
+      val parents = if (token.is[KwExtends]) {
+        accept[KwExtends]
+        templateParents()
+      } else {
+        Nil
+      }
+      Defn.Enum.Case(mods, caseName, typeParams, ctor, parents)
+    }
+  }
+
   /** Hook for IDE, for top-level classes/objects. */
   def topLevelTmplDef: Member with Stat =
     tmplDef(annots(skipNewLines = true) ++ modifiers())
@@ -2905,6 +2941,8 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
         classDef(mods :+ atPos(casePos, casePos)(Mod.Case()))
       case KwObject() =>
         objectDef(mods)
+      case KwEnum() if dialect.allowEnums =>
+        enumDef(mods)
       case KwCase() if ahead(token.is[KwObject]) =>
         val casePos = in.tokenPos
         next()
@@ -2955,6 +2993,17 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
     if (!mods.has[Mod.Override])
       rejectMod[Mod.Abstract](mods, Messages.InvalidAbstract)
     Defn.Object(mods, termName(), templateOpt(OwnedByObject))
+  }
+
+  def enumDef(mods: List[Mod]): Defn.Enum = atPos(mods, auto) {
+    accept[KwEnum]
+    val enumName = typeName()
+    onlyAcceptMod(m => m.is[Mod.Private] || m.is[Mod.Protected] || m.is[Mod.Annot])(
+      mods,
+      "Only access modifiers are allowed on enum definitions")
+    val typeParams = typeParamClauseOpt(ownerIsType = true, ctxBoundsAllowed = true)
+    val ctor = primaryCtor(OwnedByClass)
+    Defn.Enum(mods, enumName, typeParams, ctor, templateOpt(OwnedByEnum))
   }
 
 /* -------- CONSTRUCTORS ------------------------------------------- */
@@ -3111,6 +3160,7 @@ class ScalametaParser(input: Input, dialect: Dialect) { parser =>
   object OwnedByCaseClass extends TemplateOwner
   object OwnedByClass extends TemplateOwner
   object OwnedByObject extends TemplateOwner
+  object OwnedByEnum extends TemplateOwner
 
   def templateParents(): List[Init] = {
     val parents = ListBuffer[Init]()
